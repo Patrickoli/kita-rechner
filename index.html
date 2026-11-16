@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kita-Beitragsrechner Rheinisch-Bergischer Kreis</title>
+<link rel="stylesheet" href="vendor/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="vendor/mdi/css/materialdesignicons.min.css">
+<style>
+@page { size: A4; margin: 12mm; }
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #fff !important; }
+  .container { max-width: none !important; padding: 0 !important; }
+  .pb { break-before: page; }
+  .chwrap { height: auto !important; }
+  canvas { max-width: 100% !important; height: auto !important; }
+  .card, .alert { break-inside: avoid; } .card.allow { break-inside: auto; }
+  tr { break-inside: avoid; } thead { display: table-header-group; }
+  .table { font-size: .8rem; }
+  .table td, .table th { padding-left: .4rem !important; padding-right: .4rem !important; }
+}
+</style>
+</head>
+<body class="bg-body-tertiary">
+<div class="container py-4">
+
+  <nav class="navbar navbar-expand-lg bg-body border rounded mb-3 sticky-top d-print-none">
+    <div class="container-fluid">
+      <span class="navbar-brand fw-semibold"><i class="mdi mdi-human-male-child"></i> Kita-Beitragsrechner</span>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-label="Menü"><span class="navbar-toggler-icon"></span></button>
+      <div class="collapse navbar-collapse" id="nav">
+        <div class="ms-auto d-flex flex-column flex-lg-row gap-2 mt-2 mt-lg-0">
+          <button class="btn btn-outline-info" data-act="help"><i class="mdi mdi-help-circle-outline"></i> Anleitung</button>
+          <button class="btn btn-outline-success" data-act="import"><i class="mdi mdi-upload"></i> Import</button>
+          <button class="btn btn-outline-primary" data-act="export"><i class="mdi mdi-download"></i> Export</button>
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown" aria-expanded="false" title="Darstellung"><i id="themeIc" class="mdi"></i> <span id="themeTx"></span></button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><button class="dropdown-item" data-act="mode-system"><i class="mdi mdi-theme-light-dark"></i> System</button></li>
+              <li><button class="dropdown-item" data-act="mode-light"><i class="mdi mdi-white-balance-sunny"></i> Hell</button></li>
+              <li><button class="dropdown-item" data-act="mode-dark"><i class="mdi mdi-weather-night"></i> Dunkel</button></li>
+            </ul>
+          </div>
+          <button class="btn btn-outline-danger" data-act="reset"><i class="mdi mdi-restore"></i> Zurücksetzen</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <div class="d-flex flex-wrap gap-2 mb-3 d-print-none">
+    <a class="btn btn-sm btn-outline-warning" href="https://www.rbk-direkt.de/download/1296/elternbeitragssatzung" target="_blank" rel="noopener"><i class="mdi mdi-file-pdf-box"></i> Elternbeitragssatzung (PDF)</a>
+    <a class="btn btn-sm btn-outline-info" href="https://www.rbk-direkt.de/download/5581/elternbeitragsstaffelung-ab-01082026" target="_blank" rel="noopener"><i class="mdi mdi-file-pdf-box"></i> Beitragstabelle ab 01.08.2026 (PDF)</a>
+  </div>
+  <div class="mb-3 d-print-none">
+    <div class="d-flex justify-content-between small mb-1"><span class="fw-bold"><i class="mdi mdi-clipboard-check-outline"></i> Pflichtfelder</span><span id="progTx"></span></div>
+    <div class="progress" role="progressbar" aria-label="Ausgefüllte Pflichtfelder" aria-valuemin="0" aria-valuemax="100" id="prog"><div class="progress-bar" id="progBar"></div></div>
+  </div>
+  <input type="file" id="file" accept=".json,application/json" class="d-none">
+  <details class="card mb-3 d-print-none"><summary class="card-header fw-bold"><i class="mdi mdi-book-open-variant"></i> Kurzanleitung</summary><div class="card-body" id="helpPage"></div></details>
+  <div class="d-none d-print-block mb-3"><h2 class="h4" id="rt">Kita-Kosten – Kurzbericht</h2><div id="stand" class="text-body-secondary"></div></div>
+
+  <!-- Eingaben -->
+  <section id="form" class="d-print-none">
+    <div class="card mb-3">
+      <div class="card-header"><i class="mdi mdi-home-heart"></i> Familie</div>
+      <div class="card-body">
+        <div class="row g-3" id="fam"></div>
+        <details class="mt-3"><summary>Einkommen je Kalenderjahr abweichend angeben</summary>
+          <div id="yis" class="mt-2"></div>
+          <button class="btn btn-sm btn-outline-secondary" data-act="addyi"><i class="mdi mdi-plus"></i> Jahr hinzufügen</button>
+        </details>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header fw-bold"><i class="mdi mdi-home-city"></i> Kita-Profile <span class="fw-normal text-body-secondary">(bei mehreren Profilen erscheint der Vergleich)</span></div>
+      <div class="card-body"><div id="profs"></div><button class="btn btn-sm btn-outline-primary" data-act="addprof"><i class="mdi mdi-plus"></i> Kita hinzufügen</button></div>
+    </div>
+    <div id="kids"></div>
+    <button class="btn btn-outline-primary mb-4" data-act="addkid"><i class="mdi mdi-account-plus"></i> Kind hinzufügen</button>
+  </section>
+
+  <!-- Ergebnis -->
+  <main id="out"></main>
+
+  <p class="small text-body-secondary mt-4">Unverbindliche Berechnung auf Basis der Elternbeitragssatzung und der Staffelung ab 01.08.2026. Verbindlich ist allein der Beitragsbescheid des Kreisjugendamts. Essensgeld und weitere Kosten der Einrichtung sind nur enthalten, wenn du sie einträgst.</p>
+</div>
+
+<div class="modal fade d-print-none" id="mExport" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title h5"><i class="mdi mdi-download"></i> Exportieren</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body"><div class="row g-3" id="expCards"></div><p class="small text-body-secondary mt-3 mb-0">PDF-Berichte öffnen den Druckdialog. Wähle dort „Als PDF speichern".</p></div></div></div></div>
+<div class="modal fade d-print-none" id="mHelp" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title h5"><i class="mdi mdi-book-open-variant"></i> Kurzanleitung</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button></div>
+  <div class="modal-body" id="helpModal"></div></div></div></div>
+<script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="vendor/chartjs/chart.umd.js"></script>
+<script>
+/* ===== Konfiguration: neue Tabelle = neues Objekt in TAB (gültig ab Monat) ===== */
+// Werte = Spalte "100 %" je Einkommensstufe (35.000 € … 120.000 €, danach "über 120.000 €")
+const TAB = [{
+  ab: '2026-08',
+  a3: [0,65,93,121,149,177,205,233,244,255,267,278,289,301,312,324,335,347,358],   // ab 3 Jahren
+  u3: [0,125,153,181,209,237,265,293,305,316,327,338,349,363,377,391,405,419,433]  // unter 3 Jahren
+}];
+const SCHW = Array.from({length: 18}, (_, i) => 35000 + i * 5000);
+const STD = [15, 25, 35, 45, 55];        // Wochenstunden (ANNAHME: Reihenfolge wie die Spalten der Tabelle)
+const FAK = [.75, .85, 1, 1.3, 1.5];     // Spalten 75 % / 85 % / 100 % / 130 % / 150 %
+
+/* ===== Helfer ===== */
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const eur = new Intl.NumberFormat('de-DE', {style: 'currency', currency: 'EUR'}).format;
+const r1 = x => Math.round(x * 10 + 1e-6) / 10;
+const p = s => { const [a, b] = s.split('-'); return (+a) * 12 + (+b) - 1; };
+const fmt = i => String(i % 12 + 1).padStart(2, '0') + '/' + Math.floor(i / 12);
+const sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
+// Monatswerte: akzeptiert JJJJ-MM sowie MM/JJJJ, MM.JJJJ und M-JJJJ (Firefox hat kein Monatsfeld)
+const MF = ['birth', 'von', 'bis'];
+const mon = v => { v = (v || '').trim(); if (/^\d{4}-(0[1-9]|1[0-2])$/.test(v)) return v; const m = v.match(/^(0?[1-9]|1[0-2])[./-](\d{4})$/); return m ? m[2] + '-' + m[1].padStart(2, '0') : ''; };
+const g = (el, f) => { const v = el.querySelector(`[data-f="${f}"]`)?.value ?? ''; return MF.includes(f) ? mon(v) : v; };
+const COL = ['#0d6efd', '#198754', '#6f42c1', '#d63384', '#20c997', '#dc3545', '#6c757d'];
+const COL_OPT = '#ffc107'; // Optionale Kosten
+const BADGE = ' <span class="badge text-bg-info"><i class="mdi mdi-arrow-down-bold"></i> ab 3 J.</span>';
+const BADGE_F = ' <span class="badge text-bg-success"><i class="mdi mdi-gift-outline"></i> beitragsfrei</span>';
+const LEG = '<div class="card-footer small text-body-secondary">' + BADGE.trim() + ' Wechsel auf „ab 3 Jahren" &nbsp;·&nbsp; ' + BADGE_F.trim() + ' Kita-Beitrag entfällt (§ 50 KiBiz)</div>';
+// Dateinamen: JJJJ-MM-TT_Name (bei PDF dient der Seitentitel als Vorschlag im Speichern-Dialog)
+const ymd = () => { const d = new Date(), z = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); };
+const BASE_TITLE = document.title;
+const MODES = ['system', 'light', 'dark'];
+const MI = {system: ['mdi-theme-light-dark', 'System'], light: ['mdi-white-balance-sunny', 'Hell'], dark: ['mdi-weather-night', 'Dunkel']};
+const mq = matchMedia('(prefers-color-scheme: dark)');
+let mode = 'system', LONG = false, PRINT = false;
+try { mode = localStorage.getItem('theme') || 'system'; } catch (e) {}
+const applyTheme = t => {
+  t = t || (mode === 'system' ? (mq.matches ? 'dark' : 'light') : mode);
+  document.documentElement.dataset.bsTheme = t;
+  $('#themeIc').className = 'mdi ' + MI[mode][0]; $('#themeTx').textContent = MI[mode][1];
+  $$('[data-act^="mode-"]').forEach(b => b.classList.toggle('active', b.dataset.act === 'mode-' + mode));
+  Chart.defaults.color = t === 'dark' ? '#dee2e6' : '#495057';
+  Chart.defaults.borderColor = t === 'dark' ? '#495057' : '#dee2e6';
+};
+applyTheme();
+mq.addEventListener('change', () => { applyTheme(); calc(); });
+// Berichte immer hell drucken, danach zurück
+addEventListener('beforeprint', () => { PRINT = true; applyTheme('light'); calc(); });
+addEventListener('afterprint', () => { document.title = BASE_TITLE; PRINT = false; LONG = false; applyTheme(); calc(); });
+
+/* ===== Formular-Bausteine ===== */
+const esc = s => String(s).replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';');
+// Einkommensstufen der Beitragstabelle (Wert = Obergrenze der Stufe, 120001 = „über 120.000 €")
+const nf = n => n.toLocaleString('de-DE') + ' €';
+const stage = v => (v === '' || v == null || isNaN(+v)) ? '' : (+v > 120000 ? 120001 : SCHW.find(x => +v <= x));
+const stageLbl = v => v > 120000 ? 'über ' + nf(120000) : 'bis ' + nf(v);
+const INC_OPT = blank => `<option value="">${blank}</option>` + SCHW.map((x, i) => `<option value="${x}">${i ? 'über ' + nf(SCHW[i - 1]) + ' bis ' + nf(x) : 'bis ' + nf(x) + ' (kein Beitrag)'}</option>`).join('') + `<option value="120001">über ${nf(120000)}</option>`;
+const TIPS = {
+  'Jahreseinkommen der Familie *': 'Wähle die Einkommensstufe der Beitragstabelle (Summe der positiven Einkünfte beider Eltern pro Kalenderjahr, ohne Kindergeld). Die App rechnet mit der Obergrenze der Stufe.',
+  'Weitere betreute Kinder (z. B. OGS)': 'Weitere Kinder der Familie in Betreuung, z. B. in der OGS. Sie zählen bei der Teilung des Beitrags mit.',
+  'Freibetrag je 3. und weiterem Kind': 'Wird ab dem 3. Kind vom Einkommen abgezogen (§ 5 Abs. 5 der Satzung). Den aktuellen Betrag erfragst du beim Jugendamt.',
+  'Jahresbeiträge abrechnen': 'Legt fest, ob Jahresbeiträge auf 12 Monate verteilt oder komplett im August angesetzt werden.',
+  'Mitgliedsbeitrag pro Jahr (je Elternpaar)': 'Kann vor allem bei Elterninitiativen relevant sein. Er fällt einmal je Elternpaar an, nicht je Kind, und wird in Monaten mit Kita-Betreuung angesetzt.',
+  'Name (optional)': 'Nur für die Anzeige in Tabellen und Diagramm.',
+  'Geburtsmonat *': 'Bestimmt das Alter, den Wechsel auf „ab 3 Jahren“, die Einschulung und den Beginn der Beitragsfreiheit.',
+  'Betreuungsart': 'Kita oder Kindertagespflege. Der Mitgliedsbeitrag wird nur für Kita-Monate angesetzt.',
+  'Beginn *': 'Erster Monat der Betreuung.',
+  'Ende (leer = Einschulung)': 'Letzter Monat der Betreuung. Leer bedeutet bis zur Einschulung (31.07.).',
+  'Stunden pro Woche': 'Wöchentliche Betreuungszeit. Bestimmt die Spalte der Beitragstabelle.',
+  'Essen pro Monat': 'Essensgeld je Monat, z. B. Preis pro Mahlzeit mal Anzahl der Tage.',
+  'Frühstück pro Monat': 'Frühstücksgeld je Monat.',
+  'Trägerbeitrag pro Jahr (je Kind)': 'Jährlicher Beitrag an den Träger je Kind. Fällt vor allem bei Elterninitiativen an.',
+  'Name der Kita': 'Bezeichnung des Profils, z. B. für den Vergleich mehrerer Kitas. Alle Kinder gehen im Vergleich in dieselbe Kita.',
+  'Mittagessen pro Monat': 'Pauschaler Betrag für das Mittagessen je Kind und Monat.',
+  'Sonstiges pro Monat': 'Weitere regelmäßige Kosten je Kind, z. B. Getränke, Windeln oder Ausflüge.',
+  'Arbeitsstunden pro Jahr (je Elternpaar)': 'Nur bei Elterninitiativen: Pflichtstunden pro Jahr. Mit dem Stundenwert ergibt sich ein Gegenwert in Euro.',
+  'Wert je Arbeitsstunde': 'Betrag, mit dem du eine Arbeitsstunde bewertest, z. B. der Freikauf-Betrag der Initiative.',
+  'Einmalige Kosten (Aufnahme, Anteil, Kaution)': 'Fallen einmal an, im ersten Monat mit Kita-Betreuung.',
+  'Kosten pro Monat (nur Tagespflege)': 'Zusätzliche Kosten für Phasen der Kindertagespflege, z. B. Essen. Für Kita-Phasen gelten die Kita-Profile.',
+  'Kalenderjahr': 'Jahr, für das ein abweichendes Einkommen gilt.',
+  'Einkommen': 'Abweichende Einkommensstufe für dieses Kalenderjahr.'
+};
+const field = (l, ic, ctrl, suf = '', cls = 'col-6 col-md-3') => `<div class="${cls}"><label class="form-label fw-bold small mb-1">${l}${TIPS[l] ? ` <i class="mdi mdi-help-circle-outline text-body-secondary" data-tip tabindex="0" title="${TIPS[l]}"></i>` : ''}</label><div class="input-group input-group-sm has-validation"><span class="input-group-text"><i class="mdi ${ic}"></i></span>${ctrl}${suf ? `<span class="input-group-text">${suf}</span>` : ''}<div class="invalid-feedback"></div></div></div>`;
+const inp = (f, t, x = '') => `<input class="form-control" data-f="${f}" type="${t}" ${t === 'month' ? 'placeholder="MM/JJJJ" pattern="(0?[1-9]|1[0-2])([.]|/|-)[0-9]{4}|[0-9]{4}-(0[1-9]|1[0-2])" title="Format MM/JJJJ, z. B. 08/2027" ' : ''}${x}>`;
+const sel = (f, o, x = '') => `<select class="form-select" data-f="${f}" ${x}>${o}</select>`;
+const num = f => inp(f, 'number', 'min="0" step="0.01" placeholder="0"');
+const phase = () => `<div class="ph border rounded p-2 mb-2 bg-body"><div class="row g-2">
+  ${field('Betreuungsart', 'mdi-home-city', sel('typ', '<option>Kita</option><option>Kindertagespflege</option>'))}
+  ${field('Beginn *', 'mdi-calendar-start', inp('von', 'month', 'required'))}
+  ${field('Ende (leer = Einschulung)', 'mdi-calendar-end', inp('bis', 'month'))}
+  ${field('Stunden pro Woche', 'mdi-clock-outline', sel('std', STD.map(s => `<option ${s === 45 ? 'selected' : ''}>${s}</option>`).join('')))}
+  ${field('Kosten pro Monat (nur Tagespflege)', 'mdi-cash', num('tp'), '€')}
+  <div class="col-12 text-end"><button class="btn btn-sm btn-outline-danger" data-act="delph"><i class="mdi mdi-delete"></i> Phase entfernen</button></div>
+</div></div>`;
+const kid = () => `<div class="kid card mb-3"><div class="card-header"><div class="row g-2 align-items-end">
+  ${field('Name (optional)', 'mdi-account-child', inp('name', 'text', 'maxlength="40"'), '', 'col-md-4')}
+  ${field('Geburtsmonat *', 'mdi-cake-variant', inp('birth', 'month', 'required'), '', 'col-md-4')}
+  <div class="col-md-4 text-md-end"><button class="btn btn-sm btn-outline-danger" data-act="delkid"><i class="mdi mdi-delete"></i> Kind entfernen</button></div></div></div>
+  <div class="card-body"><div class="phs"></div><button class="btn btn-sm btn-outline-primary" data-act="addph"><i class="mdi mdi-plus"></i> Betreuungsphase</button></div></div>`;
+const yi = () => `<div class="yi row g-2 mb-2">${field('Kalenderjahr', 'mdi-calendar', inp('y', 'number', 'min="2026" max="2100" placeholder="2028"'))}${field('Einkommen', 'mdi-cash', sel('v', INC_OPT('wie oben')))}<div class="col-auto align-self-end"><button class="btn btn-sm btn-outline-danger" data-act="delyi"><i class="mdi mdi-delete"></i></button></div></div>`;
+const setV = (el, o) => { for (const k in o) { const i = el.querySelector(`[data-f="${k}"]`); if (i && o[k] != null) i.value = o[k]; } };
+const addPh = (k, h = {}) => { const c = k.querySelector('.phs'); c.insertAdjacentHTML('beforeend', phase()); setV(c.lastElementChild, h); };
+const addKid = (d = {}) => { $('#kids').insertAdjacentHTML('beforeend', kid()); const k = $('#kids').lastElementChild; setV(k, {name: d.name, birth: d.birth}); (d.ph?.length ? d.ph : [{}]).forEach(h => addPh(k, h)); };
+
+const prof = () => `<div class="prof border rounded p-2 mb-2 bg-body"><div class="row g-2">
+  ${field('Name der Kita', 'mdi-home-city', inp('pname', 'text', 'maxlength="40" placeholder="z. B. Kita A"'), '', 'col-md-8')}
+  <div class="col-md-4 text-md-end align-self-end"><button class="btn btn-sm btn-outline-danger" data-act="delprof"><i class="mdi mdi-delete"></i> Kita entfernen</button></div>
+  ${field('Mittagessen pro Monat', 'mdi-food', num('meal'), '€')}
+  ${field('Frühstück pro Monat', 'mdi-coffee', num('fruehst'), '€')}
+  ${field('Sonstiges pro Monat', 'mdi-dots-horizontal', num('sonst'), '€')}
+  ${field('Trägerbeitrag pro Jahr (je Kind)', 'mdi-domain', num('traeger'), '€')}
+  ${field('Mitgliedsbeitrag pro Jahr (je Elternpaar)', 'mdi-card-account-details', num('mitgl'), '€')}
+  ${field('Arbeitsstunden pro Jahr (je Elternpaar)', 'mdi-hammer-wrench', inp('ahours', 'number', 'min="0" step="1" placeholder="0"'))}
+  ${field('Wert je Arbeitsstunde', 'mdi-currency-eur', num('arate'), '€')}
+  ${field('Einmalige Kosten (Aufnahme, Anteil, Kaution)', 'mdi-cash-plus', num('einmal'), '€', 'col-12 col-md-6')}
+</div></div>`;
+const addProf = (d = {}) => { $('#profs').insertAdjacentHTML('beforeend', prof()); setV($('#profs').lastElementChild, d); };
+
+/* ===== Validierung (Bootstrap) ===== */
+function validate(all) {
+  let ok = true;
+  $$('#form [data-f]').forEach(el => {
+    el.setCustomValidity('');
+    const f0 = el.dataset.f, mv = mon(el.value);
+    if (MF.includes(f0) && el.value && !mv) el.setCustomValidity('Bitte als MM/JJJJ eingeben, z. B. 08/2027.');
+    else if (f0 === 'bis' && mv && mv < g(el.closest('.ph'), 'von')) el.setCustomValidity('Das Ende liegt vor dem Beginn.');
+    else if (f0 === 'von' && mv && mv < g(el.closest('.kid'), 'birth')) el.setCustomValidity('Der Beginn liegt vor der Geburt.');
+    if (all) el.dataset.t = 1;
+    const v = el.checkValidity(); ok = ok && v;
+    if (el.dataset.t) {
+      el.classList.toggle('is-invalid', !v); el.classList.toggle('is-valid', v && el.required && el.value !== '');
+      const f = el.parentElement.querySelector('.invalid-feedback'); if (f) f.textContent = el.validationMessage;
+    }
+  });
+  return ok;
+}
+
+/* ===== JSON Export/Import ===== */
+const FP = ['typ', 'von', 'bis', 'std', 'tp'];
+const PF = ['pname', 'meal', 'fruehst', 'traeger', 'mitgl', 'ahours', 'arate', 'einmal', 'sonst'];
+const state = () => ({app: 'kita-rechner', version: 2, income: $('#inc').value, extra: $('#extra').value, fb: $('#fb').value, mode: $('#mode').value,
+  profiles: $$('.prof').map(p => Object.fromEntries(PF.map(f => [f, g(p, f)]))),
+  years: $$('.yi').map(e => ({y: g(e, 'y'), v: g(e, 'v')})),
+  kids: $$('.kid').map(k => ({name: g(k, 'name'), birth: g(k, 'birth'), ph: $$('.ph').filter(h => k.contains(h)).map(h => Object.fromEntries(FP.map(f => [f, g(h, f)])))}))});
+const dl = (n, t, ty) => { const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([t], {type: ty})); l.download = n; l.click(); };
+function load(d) {
+  setV(document, {inc: stage(d.income), extra: d.extra, fb: d.fb, mode: d.mode});
+  $('#yis').innerHTML = ''; (d.years || []).forEach(y => { $('#yis').insertAdjacentHTML('beforeend', yi()); setV($('#yis').lastElementChild, {y: y.y, v: stage(y.v)}); });
+  $('#kids').innerHTML = ''; (d.kids || []).forEach(k => addKid(k));
+  const p0 = d.kids?.[0]?.ph?.[0] || {}; // Version 1: Kosten lagen noch in den Phasen
+  const pr = d.profiles?.length ? d.profiles : [{pname: 'Meine Kita', mitgl: d.mitgl, meal: p0.essen, fruehst: p0.fruehst, traeger: p0.traeger}];
+  $('#profs').innerHTML = ''; pr.slice(0, 4).forEach(x => addProf(x.days ? {...x, meal: (+x.meal || 0) * (+x.days)} : x)); // ältere Dateien: Preis × Tage
+  calc();
+}
+function exportAs(t) {
+  const m = bootstrap.Modal.getOrCreateInstance($('#mExport'));
+  if (t === 'json') { dl(ymd() + '_Kita-Daten.json', JSON.stringify(state(), null, 2), 'application/json'); return m.hide(); }
+  if (!validate(true)) { m.hide(); return $('.is-invalid')?.focus(); }
+  LONG = t === 'long'; $('#rt').textContent = 'Kita-Kosten – ' + (LONG ? 'Langbericht' : 'Kurzbericht'); calc();
+  document.title = ymd() + '_' + (LONG ? 'Langbericht' : 'Kurzbericht'); // Vorschlag für den PDF-Dateinamen
+  $('#mExport').addEventListener('hidden.bs.modal', () => print(), {once: true}); m.hide();
+}
+const HELP = `<ol class="mb-0">
+<li><b>Familie:</b> Wähle die Einkommensstufe (Pflicht). „Weitere betreute Kinder" (z. B. OGS) teilen sich den Beitrag mit deinen Kindern.</li>
+<li><b>Monate:</b> Gib Monate als MM/JJJJ ein, z. B. 08/2027. Im Firefox gibt es keine Monatsauswahl, dort tippst du den Wert ein.</li>
+<li><b>Kinder:</b> Lege pro Kind den Geburtsmonat und mindestens eine Betreuungsphase mit Beginn und Wochenstunden an. Bleibt das Ende leer, endet die Betreuung zur Einschulung (31.07.). Für Wechsel, z. B. Tagespflege und danach Kita, legst du weitere Phasen an.</li>
+<li><b>Kita-Profile:</b> Lege 1 bis 4 Kitas mit ihren Kosten an (Essen, Frühstück, Träger- und Mitgliedsbeitrag, Arbeitsstunden, Einmaliges, Sonstiges). Bei mehreren Profilen vergleicht die App sie, wobei alle Kinder in dieselbe Kita gehen. Der Elternbeitrag nach Tabelle ist für alle Kitas gleich. Kosten einer Tagespflege-Phase trägst du in der Phase ein.</li>
+<li><b>Beitragsfrei:</b> In NRW sind die letzten beiden Kita-Jahre vor der Einschulung beitragsfrei (§ 50 KiBiz). Die App setzt den Kita-Beitrag dann auf 0 €, optionale Kosten bleiben. Beitragsfreie Geschwister zählen laut Auskunft des Jugendamts bei der Beitragsteilung mit. Ein Kind in der OGS zählt als weiteres betreutes Kind.</li>
+<li><b>Ergebnis:</b> Es erscheint automatisch unter den Eingaben. Die blaue Markierung zeigt den Wechsel auf die Beitragsstufe „ab 3 Jahren".</li>
+<li><b>Export:</b> als JSON zum Sichern oder als PDF-Kurz- und Langbericht. <b>Import:</b> lädt eine zuvor exportierte JSON-Datei.</li>
+<li><b>Menü oben:</b> Dort wählst du die Darstellung (System, Hell, Dunkel). „Zurücksetzen“ leert das Formular. Am Fragezeichen neben den Feldern findest du Erklärungen.</li></ol>
+<p class="small text-body-secondary mt-3 mb-0">Unverbindliche Berechnung. Verbindlich ist der Beitragsbescheid des Kreisjugendamts.</p>`;
+
+/* ===== Rechnen ===== */
+const CH = {}; let SEL = 0;
+function calc() {
+  const ok = validate();
+  const rq = $$('#form [required]'), dn = rq.filter(el => el.value !== '' && el.checkValidity()).length, pc = rq.length ? Math.round(dn / rq.length * 100) : 100;
+  $('#progBar').style.width = pc + '%'; $('#progBar').textContent = pc + ' %'; $('#progBar').classList.toggle('bg-success', pc === 100);
+  $('#prog').setAttribute('aria-valuenow', pc); $('#progTx').textContent = dn + ' von ' + rq.length + ' ausgefüllt';
+  const inc = +$('#inc').value || 0, extra = +$('#extra').value || 0, fb = +$('#fb').value || 0, spread = $('#mode').value === 'spread';
+  const yrs = $$('.yi').map(e => ({y: +g(e, 'y'), v: g(e, 'v')})).filter(o => o.y && o.v !== '');
+  const incFor = y => { const o = yrs.find(a => a.y === y); return o ? +o.v : inc; };
+  const kids = $$('.kid').map((k, i) => ({
+    name: g(k, 'name') || 'Kind ' + (i + 1), birth: g(k, 'birth'),
+    ph: $$('.ph').filter(h => k.contains(h)).map(h => ({von: g(h, 'von'), bis: g(h, 'bis'), std: +g(h, 'std'),
+      kita: g(h, 'typ') === 'Kita', tp: g(h, 'typ') === 'Kita' ? 0 : +g(h, 'tp') || 0}))
+  })).filter(k => k.birth);
+
+  // Monatseinträge je Kind (mehrere Phasen im selben Monat: Stunden und Kosten addieren)
+  const M = new Map();
+  kids.forEach((k, ki) => {
+    const [by, bm] = k.birth.split('-').map(Number), end = (by + (bm <= 9 ? 6 : 7)) * 12 + 6; k.fs = (by + (bm <= 9 ? 4 : 5)) * 12 + 7; k.end = end; // Einschulung: Ende Juli
+    k.ph.forEach(h => {
+      if (!h.von || h.von < k.birth) return;
+      const a = p(h.von), z = Math.min(h.bis ? p(h.bis) : end, a + 240);
+      for (let m = a; m <= z; m++) {
+        const e = M.get(ki + '|' + m) || {ki, m, std: 0, tp: 0};
+        e.std += h.std; e.tp += h.tp; e.kita = e.kita || h.kita; e.free = m >= k.fs && m <= k.end; M.set(ki + '|' + m, e);
+      }
+    });
+  });
+  const countFree = true, cnt = {};
+  M.forEach(e => cnt[e.m] = (cnt[e.m] || 0) + (e.free && !countFree ? 0 : 1));
+  let warn = false;
+  const base = [...M.values()].map(e => {
+    const k = kids[e.ki], n = cnt[e.m] + extra, age = e.m - p(k.birth);
+    let t = [...TAB].reverse().find(t => p(t.ab) <= e.m); if (!t) { t = TAB[0]; warn = true; }
+    let col = STD.findIndex(s => s >= e.std); if (col < 0) col = 4;
+    const ie = Math.max(0, incFor(Math.floor(e.m / 12)) - fb * Math.max(0, kids.length + extra - 2));
+    let i = SCHW.findIndex(s => ie <= s); if (i < 0) i = SCHW.length;
+    const bt = e.free ? 0 : r1((age < 36 ? t.u3 : t.a3)[i] * FAK[col]) / n;
+    return {ki: e.ki, m: e.m, age, bt, free: e.free, kita: e.kita, tp: e.tp};
+  }).sort((a, b) => a.m - b.m || a.ki - b.ki);
+
+  if ($('#inc').value === '') base.length = 0; // ohne Einkommen keine Berechnung
+  // Kita-Profile: Beitrag nach Tabelle ist gleich, die übrigen Kosten je Profil
+  const profs = $$('.prof').map((el, i) => ({name: g(el, 'pname') || 'Kita ' + (i + 1), meal: +g(el, 'meal') || 0, fr: +g(el, 'fruehst') || 0,
+    tr: +g(el, 'traeger') || 0, fam: (+g(el, 'mitgl') || 0) + (+g(el, 'ahours') || 0) * (+g(el, 'arate') || 0), once: +g(el, 'einmal') || 0, so: +g(el, 'sonst') || 0}));
+  if (!profs.length) profs.push({name: 'Kita', meal: 0, days: 0, fr: 0, tr: 0, fam: 0, once: 0, so: 0});
+  const first = base.find(r => r.kita)?.m;
+  const res = profs.map(P => { const seen = new Set(); return {name: P.name, rows: base.map(r => {
+    // Kostenarten: Beitrag, Essen+Frühstück, Träger, Mitglied/Arbeit, Einmalig, Sonstiges, Tagespflege
+    const c = [r.bt, r.kita ? P.meal + P.fr : 0, r.kita ? (spread ? P.tr / 12 : r.m % 12 === 7 ? P.tr : 0) : 0, 0, 0, r.kita ? P.so : 0, r.tp];
+    if (r.kita && !seen.has(r.m)) { seen.add(r.m); c[3] = spread ? P.fam / 12 : r.m % 12 === 7 ? P.fam : 0; if (r.m === first) c[4] = P.once; }
+    const opt = sum(c.slice(1), x => x); return {...r, c, opt, tot: r.bt + opt}; })}; });
+  SEL = Math.min(SEL, res.length - 1);
+  render(kids, res[SEL].rows, warn, {inc, extra, fb, spread, yrs, ok, res, sel: SEL});
+}
+
+/* ===== Ausgabe ===== */
+const th = (t, c = '') => `<th class="${c}">${t}</th>`;
+const AR = {ch: 2.2, chK: 1.25, chS: 1.25}; // Seitenverhältnis im Druck
+const mk = (id, cfg) => {
+  // Schriftgröße: am Bildschirm 14 px; im Druck so, dass sie nach dem Verkleinern auf die Seitenbreite (ca. 700 px bzw. 340 px) etwa 11,5 px hat
+  const w = $('#' + id).parentElement.clientWidth || 600, fs = PRINT ? Math.max(12, Math.round(11.5 * w / (id === 'ch' ? 700 : 340))) : 14, f = {size: fs}, o = cfg.options, p = o.plugins = o.plugins || {};
+  if (PRINT) Object.assign(o, {maintainAspectRatio: true, aspectRatio: AR[id]});
+  p.legend = {position: 'bottom', labels: {font: f, boxWidth: fs, padding: Math.round(fs * .8)}};
+  p.title = {...p.title, font: {size: fs + 2, weight: 'bold'}};
+  p.tooltip = {...p.tooltip, titleFont: f, bodyFont: f};
+  o.scales = o.scales || {};
+  ['x', 'y'].forEach(a => { o.scales[a] = o.scales[a] || {}; o.scales[a].ticks = {...o.scales[a].ticks, font: f}; });
+  CH[id]?.destroy(); CH[id] = new Chart($('#' + id), cfg);
+};
+const chBox = id => `<div class="chwrap" style="height:340px"><canvas id="${id}"></canvas></div>`;
+const CAT = ['Kita-Beitrag', 'Essen & Frühstück', 'Trägerbeitrag', 'Mitglied / Arbeitsstunden', 'Einmalige Kosten', 'Sonstiges', 'Tagespflege'];
+const CC = ['#0d6efd', '#198754', '#6f42c1', '#ffc107', '#fd7e14', '#6c757d', '#20c997'];
+// Diagramm-Gruppen: Kita-Gebühren, Essen, Mitglieds- und Trägerbeitrag (zusammen), Sonstiges (Einmalig, Sonstiges, Tagespflege)
+const GL = ['Kita-Gebühren', 'Essen & Frühstück', 'Mitglieds- & Trägerbeitrag', 'Sonstige Kosten'], GI = [[0], [1], [2, 3], [4, 5, 6]], GC = ['#0d6efd', '#198754', '#fd7e14', '#6f42c1'];
+const cmpHtml = (o, n) => {
+  const R = o.res.map(r => ({name: r.name, cat: CAT.map((_, i) => sum(r.rows, x => x.c[i])), tot: sum(r.rows, x => x.tot)})), min = Math.min(...R.map(r => r.tot));
+  const row = (l, f, cls = '') => `<tr class="${cls}"><td class="fw-semibold">${l}</td>${R.map(r => `<td class="text-end">${f(r)}</td>`).join('')}</tr>`;
+  return `<div class="card mb-3"><div class="card-header"><i class="mdi mdi-scale-balance"></i> Kita-Vergleich <span class="fw-normal text-body-secondary">(alle Kinder in derselben Kita)</span></div>
+  <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th></th>${R.map(r => `<th class="text-end">${esc(r.name)}${r.tot === min ? ' <span class="badge text-bg-success">günstigste</span>' : ''}</th>`).join('')}</tr></thead><tbody>
+    ${row('Kita-Beiträge (Tabelle)', r => eur(r.cat[0]))}${row('Laufende Kosten', r => eur(r.cat[1] + r.cat[2] + r.cat[3] + r.cat[5] + r.cat[6]))}${row('Einmalige Kosten', r => eur(r.cat[4]))}
+    ${row('Gesamt', r => eur(r.tot), 'table-active fw-bold')}${row('Ø pro Monat', r => eur(r.tot / n))}${row('Mehrkosten zur günstigsten', r => r.tot === min ? '–' : '+ ' + eur(r.tot - min))}
+  </tbody></table></div>
+  <div class="card-body"><div class="row g-3"><div class="col-sm-6">${chBox('chK')}</div><div class="col-sm-6">${chBox('chS')}</div></div></div>
+  <div class="card-footer d-print-none"><span class="small me-2">Details unten für:</span><div class="nav nav-pills d-inline-flex gap-1">${R.map((r, i) => `<button class="nav-link py-1 ${i === o.sel ? 'active' : ''}" data-act="sel-${i}">${esc(r.name)}</button>`).join('')}</div></div></div>`;
+};
+function mkCmp(o) {
+  const R = o.res, ms = [...new Set(R[0].rows.map(r => r.m))].sort((a, b) => a - b), tip = {callbacks: {label: c => `${c.dataset.label}: ${eur(c.parsed.y)}`}};
+  mk('chK', {type: 'bar', data: {labels: R.map(r => r.name), datasets: GL.map((l, g) => ({label: l, backgroundColor: GC[g], data: R.map(r => sum(r.rows, x => sum(GI[g], i => x.c[i])))})).filter(d => d.data.some(v => v > 0))},
+    options: {animation: false, maintainAspectRatio: false, scales: {x: {stacked: true}, y: {stacked: true, ticks: {callback: v => eur(v)}}}, plugins: {title: {display: true, text: 'Gesamtkosten nach Kostenart'}, tooltip: tip}}});
+  mk('chS', {type: 'line', data: {labels: ms.map(fmt), datasets: R.map((r, i) => { let t = 0; return {label: r.name, borderColor: COL[i % COL.length], backgroundColor: COL[i % COL.length], pointRadius: 0, tension: 0, data: ms.map(m => (t += sum(r.rows.filter(x => x.m === m), x => x.tot)))}; })},
+    options: {animation: false, maintainAspectRatio: false, scales: {y: {ticks: {callback: v => eur(v)}}}, plugins: {title: {display: true, text: 'Summe der Kosten über die Zeit'}, tooltip: tip}}});
+}
+function render(kids, rows, warn, o) {
+  const out = $('#out');
+  if (!rows.length) { out.innerHTML = (o.ok ? '' : '<div class="alert alert-danger"><i class="mdi mdi-alert-circle"></i> Einige Eingaben sind fehlerhaft. Bitte korrigiere die rot markierten Felder. Monate gibst du als MM/JJJJ ein, z. B. 08/2027.</div>') + '<div class="alert alert-info"><i class="mdi mdi-information"></i> Wähle die Einkommensstufe, trage einen Geburtsmonat und den Beginn einer Betreuungsphase ein, dann erscheint hier die Berechnung.</div>'; return; }
+  const total = sum(rows, r => r.tot), months = [...new Set(rows.map(r => r.m))].sort((a, b) => a - b);
+  const mt = {}; rows.forEach(r => mt[r.m] = (mt[r.m] || 0) + r.tot);
+  const peak = Math.max(...Object.values(mt));
+  const kpi = (ic, l, v) => `<div class="col-6 col-sm-4"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small"><i class="mdi ${ic}"></i> ${l}</div><div class="fs-4 fw-semibold">${v}</div></div></div></div>`;
+
+  const J = kids.map((k, ki) => { const m = p(k.birth) + 36; return rows.some(r => r.ki === ki && r.m === m) ? m : null; });
+  const F = kids.map((k, ki) => rows.find(r => r.ki === ki && r.free)?.m ?? null);
+  const perKid = kids.map((k, ki) => { const r = rows.filter(x => x.ki === ki), ms = r.map(x => x.m);
+    return r.length ? `<tr><td>${esc(k.name)}</td><td>${fmt(Math.min(...ms))} – ${fmt(Math.max(...ms))}</td><td>${J[ki] != null ? BADGE + ' ' + fmt(J[ki]) : '–'}</td><td>${F[ki] != null ? BADGE_F + ' ' + fmt(F[ki]) : '–'}</td><td class="text-end">${r.length}</td><td class="text-end">${eur(sum(r, x => x.bt))}</td><td class="text-end">${eur(sum(r, x => x.opt))}</td><td class="text-end fw-semibold">${eur(sum(r, x => x.tot))}</td><td class="text-end">${eur(sum(r, x => x.tot) / r.length)}</td></tr>` : ''; }).join('');
+
+  const ys = [...new Set(months.map(m => Math.floor(m / 12)))];
+  const perYear = ys.map(y => { const r = rows.filter(x => Math.floor(x.m / 12) === y), n = months.filter(m => Math.floor(m / 12) === y).length;
+    const js = kids.map((k, ki) => J[ki] != null && Math.floor(J[ki] / 12) === y ? BADGE + ' ' + esc(k.name) + ' ' + fmt(J[ki]) : '').join('');
+    const fj = kids.map((k, ki) => F[ki] != null && Math.floor(F[ki] / 12) === y ? BADGE_F + ' ' + esc(k.name) + ' ' + fmt(F[ki]) : '').join('');
+    return `<tr class="${fj ? 'table-success' : js ? 'table-info' : ''}"><td>${y}${js}${fj}</td><td class="text-end">${n}</td><td class="text-end">${eur(sum(r, x => x.bt))}</td><td class="text-end">${eur(sum(r, x => x.opt))}</td><td class="text-end fw-semibold">${eur(sum(r, x => x.tot))}</td><td class="text-end">${eur(sum(r, x => x.tot) / n)}</td></tr>`; }).join('');
+
+  const monthCard = (R, name, cls) => {
+    const m2 = {}; R.forEach(r => m2[r.m] = (m2[r.m] || 0) + r.tot); let d = '';
+    months.forEach(m => { const rs = R.filter(r => r.m === m);
+      rs.forEach(r => d += `<tr class="${r.m === F[r.ki] ? 'table-success' : r.age === 36 ? 'table-info' : ''}"><td>${fmt(m)}</td><td>${esc(kids[r.ki].name)}</td><td>${Math.floor(r.age / 12)} J ${r.age % 12} M${r.age === 36 ? BADGE : ''}</td><td class="text-end">${eur(r.opt)}</td><td class="text-end">${r.free ? BADGE_F.trim() : eur(r.bt)}</td><td class="text-end">${eur(r.tot)}</td></tr>`);
+      if (rs.length > 1) d += `<tr class="table-active fw-semibold"><td colspan="3">Summe ${fmt(m)}</td><td class="text-end">${eur(sum(rs, r => r.opt))}</td><td class="text-end">${eur(sum(rs, r => r.bt))}</td><td class="text-end">${eur(m2[m])}</td></tr>`; });
+    return `<div class="card mb-3 allow ${cls}"><div class="card-header d-flex align-items-center"><span><i class="mdi mdi-table"></i> Alle Monate${o.res.length > 1 ? ' – ' + esc(name) : ''}</span>
+      <button class="btn btn-sm btn-outline-secondary ms-auto d-print-none" data-act="csv"><i class="mdi mdi-file-delimited"></i> CSV</button></div>
+      <div class="table-responsive" style="${LONG ? '' : 'max-height:60vh'}"><table class="table table-sm table-hover mb-0"><thead class="table-light sticky-top">
+      <tr>${th('Monat/Jahr')}${th('Kind')}${th('Alter')}${th('Optionale Kosten', 'text-end')}${th('Kita-Beitrag', 'text-end')}${th('Gesamt pro Monat', 'text-end')}</tr></thead><tbody>${d}</tbody></table></div>${LEG}</div>`;
+  };
+
+  const cmp = o.res.length > 1 ? cmpHtml(o, months.length) : '';
+  const yTxt = o.yrs.length ? ', abweichend: ' + o.yrs.map(a => `${a.y}: ${stageLbl(+a.v)}`).join(', ') : '';
+  $('#stand').innerHTML = `<div>Stand ${new Date().toLocaleDateString('de-DE')} · Einkommensstufe ${esc(stageLbl(o.inc))}</div><div>Kinder: ${kids.map(k => esc(k.name) + ' (geb. ' + fmt(p(k.birth)) + ')').join(', ')}</div><div>Kita${o.res.length > 1 ? 's im Vergleich' : ''}: ${o.res.map(r => esc(r.name)).join(', ')}</div>`;
+  out.innerHTML = `
+  ${o.ok ? '' : '<div class="alert alert-danger d-print-none"><i class="mdi mdi-alert-circle"></i> Einige Eingaben sind fehlerhaft und werden nicht berücksichtigt.</div>'}
+  ${F.some(x => x != null) ? '<div class="alert alert-success"><i class="mdi mdi-gift-outline"></i> Beitragsfrei (§ 50 KiBiz): ' + kids.map((k, ki) => F[ki] != null ? esc(k.name) + ' ab ' + fmt(F[ki]) : '').filter(Boolean).join(', ') + '. Danach fallen nur noch optionale Kosten an.</div>' : ''}
+  ${warn ? '<div class="alert alert-warning"><i class="mdi mdi-alert"></i> Für Monate vor 08/2026 liegt keine Tabelle vor. Dort wurde die Tabelle ab 08/2026 verwendet.</div>' : ''}
+  ${cmp}
+  ${o.res.length > 1 ? `<h2 class="h5 mb-3"><i class="mdi mdi-home-city"></i> Details für ${esc(o.res[o.sel].name)}</h2>` : ''}
+  <div class="row g-3 mb-3">${kpi('mdi-cash-multiple', 'Kosten insgesamt', eur(total))}${kpi('mdi-human-male-child', 'Kita-Beiträge insgesamt', eur(sum(rows, r => r.bt)))}${kpi('mdi-silverware-fork-knife', 'Optionale Kosten insgesamt', eur(sum(rows, r => r.opt)))}${kpi('mdi-calendar-month', 'Durchschnitt pro Monat', eur(total / months.length))}${kpi('mdi-calendar-range', 'Monate mit Kosten', months.length)}${kpi('mdi-arrow-up-bold', 'Teuerster Monat', eur(peak))}</div>
+  <div class="card mb-3"><div class="card-header"><i class="mdi mdi-account-multiple"></i> Kosten pro Kind</div><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr>${th('Kind')}${th('Zeitraum')}${th('Ab 3 Jahren')}${th('Beitragsfrei ab')}${th('Monate', 'text-end')}${th('Kita-Beitrag', 'text-end')}${th('Optionale Kosten', 'text-end')}${th('Gesamt', 'text-end')}${th('Ø pro Monat', 'text-end')}</tr></thead><tbody>${perKid}</tbody></table></div>${LEG}</div>
+  <div class="card mb-3"><div class="card-header"><i class="mdi mdi-chart-bar"></i> Kosten pro Monat nach Kostenart</div><div class="card-body">${chBox('ch')}</div></div>
+  <div class="card mb-3"><div class="card-header"><i class="mdi mdi-calendar-text"></i> Kosten pro Jahr</div><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr>${th('Jahr')}${th('Monate', 'text-end')}${th('Kita-Beitrag', 'text-end')}${th('Optionale Kosten', 'text-end')}${th('Gesamt', 'text-end')}${th('Ø pro Monat', 'text-end')}</tr></thead><tbody>${perYear}</tbody></table></div>${LEG}</div>
+  ${LONG ? o.res.map(r => monthCard(r.rows, r.name, 'pb')).join('') : monthCard(rows, o.res[o.sel].name, 'd-print-none')}
+  <div class="small text-body-secondary"><i class="mdi mdi-information-outline"></i> Annahmen: Einkommensstufe ${stageLbl(o.inc)}${yTxt}; Kita-Profil: ${esc(o.res[o.sel].name)}; Tabelle ab ${TAB.map(t => fmt(p(t.ab))).join(', ')}; Stunden → Spalte: ${STD.map((s, i) => `${s} Std. = ${FAK[i] * 100} %`).join(', ')}; Geschwisterregel: Beitrag geteilt durch Zahl der gleichzeitig betreuten Kinder (${kids.length + o.extra} Kinder in der Familie); Beitragsfreiheit der letzten zwei Kita-Jahre vor der Einschulung (§ 50 KiBiz), beitragsfreie Kinder zählen bei der Geschwisterteilung mit; Jahresbeiträge ${o.spread ? 'auf 12 Monate verteilt' : 'im August'}; Betreuungsende ohne Angabe = 31.07. des Einschulungsjahres.</div>`;
+
+  mk('ch', {type: 'bar', data: {labels: months.map(fmt),
+    datasets: GL.map((l, g) => ({label: l, backgroundColor: GC[g], data: months.map(m => sum(rows.filter(r => r.m === m), r => sum(GI[g], i => r.c[i])))})).filter(d => d.data.some(v => v > 0))},
+    options: {animation: false, maintainAspectRatio: false, scales: {x: {stacked: true}, y: {stacked: true, ticks: {callback: v => eur(v)}}}, plugins: {tooltip: {callbacks: {label: c => `${c.dataset.label}: ${eur(c.parsed.y)}`}}}}});
+  if (o.res.length > 1) mkCmp(o); else ['chK', 'chS'].forEach(i => { CH[i]?.destroy(); delete CH[i]; });
+  $$('#out td, #out th').forEach(c => c.classList.add('px-3'));
+  window._csv = [['Monat/Jahr', 'Kind', 'Alter (Monate)', 'Optionale Kosten', 'Kita-Beitrag', 'Gesamt'], ...rows.map(r => [fmt(r.m), kids[r.ki].name, r.age, r.opt.toFixed(2), r.bt.toFixed(2), r.tot.toFixed(2)])];
+}
+
+/* ===== Events ===== */
+document.addEventListener('input', e => { if (e.target.dataset?.f) e.target.dataset.t = 1; calc(); });
+document.addEventListener('focusout', e => { if (e.target.dataset?.f) { e.target.dataset.t = 1; validate(); } });
+$('#file').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { const d = JSON.parse(await f.text()); if (d.app !== 'kita-rechner') throw 0; load(d); }
+  catch (err) { alert('Die Datei ist keine gültige Kita-Rechner-JSON.'); }
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const a = b.dataset.act;
+  if (a.startsWith('mode-')) { mode = a.slice(5); try { localStorage.setItem('theme', mode); } catch (e) {} applyTheme(); }
+  if (a === 'reset') { if (confirm('Alle Eingaben zurücksetzen?')) reset(); return; }
+  if (a === 'help') return bootstrap.Modal.getOrCreateInstance($('#mHelp')).show();
+  if (a === 'import') return $('#file').click();
+  if (a === 'export') return bootstrap.Modal.getOrCreateInstance($('#mExport')).show();
+  if (a.startsWith('exp-')) return exportAs(a.slice(4));
+  if (a === 'addkid') addKid();
+  if (a === 'addprof' && $$('.prof').length < 4) addProf();
+  if (a === 'delprof' && $$('.prof').length > 1) b.closest('.prof').remove();
+  if (a.startsWith('sel-')) SEL = +a.slice(4);
+  if (a === 'delkid') b.closest('.kid').remove();
+  if (a === 'addph') addPh(b.closest('.kid'));
+  if (a === 'delph') b.closest('.ph').remove();
+  if (a === 'addyi') $('#yis').insertAdjacentHTML('beforeend', yi());
+  if (a === 'delyi') b.closest('.yi').remove();
+  if (a === 'csv') {
+    const t = window._csv.map(r => r.map(c => `"${String(c).replace('.', ',')}"`).join(';')).join('\n');
+    const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob(['\ufeff' + t], {type: 'text/csv'})); l.download = ymd() + '_Monatstabelle.csv'; l.click(); return;
+  }
+  calc();
+});
+
+// Startbeispiel
+$('#fam').innerHTML =
+  field('Jahreseinkommen der Familie *', 'mdi-cash', sel('inc', INC_OPT('Bitte wählen …'), 'id="inc" required'), '', 'col-md-3') +
+  field('Weitere betreute Kinder (z. B. OGS)', 'mdi-account-multiple-plus', inp('extra', 'number', 'id="extra" min="0" step="1" value="0"'), '', 'col-md-3') +
+  field('Freibetrag je 3. und weiterem Kind', 'mdi-account-minus', inp('fb', 'number', 'id="fb" min="0" value="0"'), '€', 'col-md-3') +
+  field('Jahresbeiträge abrechnen', 'mdi-calendar-sync', sel('mode', '<option value="spread">auf 12 Monate verteilt</option><option value="aug">komplett im August</option>', 'id="mode"'), '', 'col-md-3');
+$('#helpPage').innerHTML = $('#helpModal').innerHTML = HELP;
+const EC = {json: 'primary', short: 'success', long: 'warning'};
+$('#expCards').innerHTML = [
+  ['json', 'mdi-code-json', 'JSON', 'Alle Eingaben zum Sichern und späteren Import.'],
+  ['short', 'mdi-file-pdf-box', 'PDF-Kurzbericht', 'Kennzahlen, Kosten pro Kind und Jahr, Diagramm.'],
+  ['long', 'mdi-file-document-multiple', 'PDF-Langbericht', 'Wie der Kurzbericht, dazu die Tabelle aller Monate.']
+].map(([k, ic, t, d]) => `<div class="col-md-4"><div class="card h-100 text-center"><div class="card-body d-flex flex-column gap-2"><i class="mdi ${ic} display-5 text-${EC[k]}"></i><h3 class="h6 mb-0">${t}</h3><p class="small text-body-secondary">${d}</p><button class="btn btn-outline-${EC[k]} mt-auto" data-act="exp-${k}">Exportieren</button></div></div></div>`).join('');
+new bootstrap.Tooltip(document.body, {selector: '[data-tip]'});
+const INIT = {income: '', extra: '0', fb: '0', mode: 'spread', years: [], profiles: [{}], kids: [{}]};
+const reset = () => { $$('[data-t]').forEach(el => { delete el.dataset.t; el.classList.remove('is-invalid', 'is-valid'); }); load(INIT); };
+load(INIT);
+</script>
+</body>
+</html>
